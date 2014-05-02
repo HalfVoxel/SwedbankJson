@@ -2,14 +2,19 @@
 
 require_once 'swedbankJson.php';
 
-$username = 198903060000;   // Personnummer
-$password = 'fakePW';       // Personlig kod
-
 try
 {
-    $bankConn    = new SwedbankJson($username, $password);
+	// Login with your credentials
+	// Read a file and divide it into lines
+    $arr = file("../.credentials/swedbank");
+
+    $username = trim($arr[0]); // Personnummer
+    $password = trim($arr[1]); // Personlig kod
+    $authKey = trim(count($arr) > 2 ? $arr[2] : ""); // Autientiseringsnyckel, kan vara tom
+
+    $bankConn    = new SwedbankJson($username, $password, $authKey);
     $accounts    = $bankConn->accountList();
-    $accountInfo = $bankConn->accountDetails($accounts->transactionAccounts[0]->id); // Hämtar från första kontot, sannolikt lönekontot
+    $accountInfo = $bankConn->accountDetails($accounts->transactionAccounts[1]->id); // Hämtar från första kontot, sannolikt lönekontot
     $bankConn->terminate();
 }
 catch (Exception $e)
@@ -20,6 +25,7 @@ catch (Exception $e)
 
 ####
 
+/*
 echo '<pre>
 Konton
 ';
@@ -37,6 +43,9 @@ print_r($accountInfo);
 echo '
 Auth-nyckel:
 ';
+echo $bankConn->getAuthorizationKey();
+*/
+
+echo (json_encode($accountInfo));
 
 $bankConn = new SwedbankJson($username, $password);
-echo $bankConn->getAuthorizationKey();
