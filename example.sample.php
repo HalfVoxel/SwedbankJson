@@ -9,7 +9,7 @@ try
 {
 	// Login with your credentials
 	// Read a file and divide it into lines
-    $arr = file("../.credentials/swedbank");
+    $arr = file(".credentials/swedbank");
 
     $username = trim($arr[0]); // Personnummer
     $password = trim($arr[1]); // Personlig kod
