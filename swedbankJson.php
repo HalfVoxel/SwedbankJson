@@ -72,6 +72,11 @@ class SwedbankJson
     private $_useragent;
 
     /**
+     * @var string Profiltyp
+     */
+    private $_profileType;
+
+    /**
      * Grundläggande upgifter
      *
      * @param int    $username      Personnummer för inlogging till internetbanken
@@ -97,6 +102,7 @@ class SwedbankJson
 
         $this->_appID       = $appdata['appID'];
         $this->_useragent   = $appdata['useragent'];
+        $this->_profileType = (strpos($this->_useragent, 'Corporate')) ? 'corporateProfiles' : 'privateProfile';
     }
 
     /**
@@ -193,17 +199,20 @@ class SwedbankJson
      */
     private function login()
     {
-        $data_string = json_encode(array( 'userId' => $this->_username, 'password' => $this->_password ));
+        $data_string = json_encode(array('useEasyLogin' => false, 'password' => $this->_password, 'generateEasyLoginId' => false, 'userId' => $this->_username,  ));
         $output      = $this->postRequest('identification/personalcode', $data_string);
 
-        if (!isset($output->links->next->uri))
+        if($output->generateEasyLoginId)
+            throw new Exception('Byte av personlig kod krävs av banken. Var god rätta till detta genom att logga in på internetbanken.', 11);
+        elseif (!isset($output->links->next->uri))
             throw new Exception('Inlogging misslyckades. Kontrollera användarnman, lösenord och authorization-nyckel.', 10);
-
+        
         // Hämtar ID-nummer
         $profile = $this->profile();
 
-        $this->_bankID = $profile->banks[0]->bankId;
-        $this->_id     = $profile->banks[0]->privateProfile->id;
+        $this->_bankID  = $profile->banks[0]->bankId;
+        $profileData    = $profile->banks[0]->{$this->_profileType}; // Väljer privat- eller företagskonto beroende på angiven useragent
+        $this->_id      = (is_array($profileData)) ? $profileData[0]->id : $profileData->id; // @todo Göra det möjligt att välja profil
 
         $this->menus();
 
@@ -213,17 +222,18 @@ class SwedbankJson
     /**
      * Visar kontodetaljer och transaktioner för konto
      *
-     * @param $accoutID string  Unika och slumpade konto-id från Swedbank API
-     * @param $getAll   bool    True om alla transaktioner ska visas, annars false
+     * @param $accoutID             string  Unika och slumpade konto-id från Swedbank API
+     * @param $transactionsPerPage  int     Antal transaktioner som listas "per sida". Måste vara ett heltal större eller lika med 1.
+     * @param $page                 int     Aktuell sida. Måste vara ett heltal större eller lika med 1. $transactionsPerPage måste anges.
      *
      * @return object           Avkodad JSON med kontinformationn
      * @throws Exception        AccoutID inte stämmer
      */
-    public function accountDetails($accoutID, $getAll = false)
+    public function accountDetails($accoutID, $transactionsPerPage=0, $page=1)
     {
         $query = array();
-        if ($getAll)
-            $query = array( 'transactionsPerPage' => 10000, 'page' => 1 );
+        if($transactionsPerPage > 0 AND $page >= 1)
+            $query = array( 'transactionsPerPage' => (int)$transactionsPerPage, 'page' => (int)$page,);
 
         $output = $this->getRequest('engagement/transactions/' . $accoutID, null, $query);
 
@@ -268,7 +278,7 @@ class SwedbankJson
      */
     private function menus()
     {
-        return $this->postRequest('profile/private/' . $this->_bankID);
+        return $this->postRequest('profile/' . $this->_id);
     }
 
     /**
